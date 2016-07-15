@@ -11,3 +11,9 @@
 *.toc
 _minted-*/
 auto/
+/.ninja_*
+/*.ninja
+/compile_commands.json
+/cmake_install.cmake
+/CMakeFiles/
+/CMakeCache.txt
