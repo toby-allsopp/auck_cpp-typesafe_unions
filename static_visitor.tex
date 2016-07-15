@@ -3,6 +3,7 @@
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage{minted}
+\usepackage{amsmath}
 \usepackage{booktabs}
 \usepackage{sourcecodepro}
 %\usepackage{sourcesanspro}
@@ -16,7 +17,7 @@
 \setbeamertemplate{navigation symbols}{}
 
 \date{Auckland C++ Meetup\\19 July 2016}
-\title{Discriminated Unions and Static Visitation in C++}
+\title{Type-safe Unions in C++}
 \subtitle{}
 \author[Toby Allsopp]{Toby Allsopp\\\texttt{toby@mi6.gen.nz}}
 
@@ -49,15 +50,432 @@
 \end{frame}
 
 
-\section{Discriminated Unions}
+\section{Motivating Example}
+
+\begin{frame}
+  \frametitle{A robot}  
+  \begin{itemize}
+  \item States
+    \inputminted{cpp}{state.hpp}
+  \item Events
+    \inputminted{cpp}{event.hpp}
+  \end{itemize}
+\end{frame}
 
 \begin{frame}[fragile]
+  \frametitle{State transitions}
+  \begin{tabular}{ll|l}
+    \toprule
+    \alert{Start state} & \alert{Event}            & \alert{End state} \\
+    \midrule
+    Any                 & \cpp|start_turning{h}|   & \cpp|turning{h}|  \\
+    Any                 & \cpp|stop_turning|       & \cpp|idle|        \\
+    \cpp|turning{h}|    & \cpp|heading_changed{h}| & \cpp|idle|        \\
+    $s$                 & \cpp|heading_changed|    & $s$               \\
+    \bottomrule
+  \end{tabular}
 \end{frame}
 
 
-\section{Visitor Pattern}
+\section{A Touch of Theory}
+
+\begin{frame}
+  \frametitle{Types}
+  A \alert{type} is EITHER
+  \begin{itemize}
+  \item a set of $n$ primitive values $T = \left\{ v_1, v_2, \dots, v_n \right\}$,
+  \item a \alert{product} of $n$ other types $T = T_1 \times T_2 \times \dots
+    \times T_n$, or
+  \item a \alert{sum} of $n$ other types $T = T_1 \cup T_2 \cup \dots \cup T_n$.
+  \end{itemize}
+\end{frame}
+
+\section{Discriminated Unions}
 
 \begin{frame}[fragile]
+  \frametitle{Sum types}
+  \begin{itemize}
+  \item To represent the state of the robot, we want a type whose values are
+    \alert{either} \cpp|idle| \alert{or} \cpp|turning|.
+  \item This is called a \alert{sum type} because its cardinality is the sum of
+    the cardinalities of its constituent types.
+  \item We could also call it a \alert{union type} because the set of its
+    possible values is the union of the sets of values of its constituent types.
+  \end{itemize}
+\end{frame}
+
+\subsection{Plain old \cpp{union}}
+
+\begin{frame}[fragile]
+  \frametitle{Indiscriminate \cpp|union|}
+\begin{cppcode}
+    union u {
+      int i;
+      double d;
+    }
+    u x;
+    x.i = 3;
+    double d = x.d; // UNDEFINED BEHAVIOUR
+\end{cppcode}
+  \begin{itemize}
+  \item Can't tell what was last stored but you'd better know!
+  \item Can be used for bit twiddling on specific platforms
+  \item No guarantees from the standard
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{More \cpp|union| gotchas}
+\begin{cppcode}
+union u {
+  std::string s;
+  std::vector<int> v;
+} x;
+x.s = "Hello"; // KABOOM!
+new (&x.s) std::string("Hello"); // OK
+x.s = "Goodbye"; // OK
+u y = x; // NOPE - copy constructor is deleted
+new (&x.v) std::vector<int>{1, 2, 3}; // LEAK!
+x.s.~std::string(); // DO THIS FIRST
+\end{cppcode}
+\end{frame}
+
+\subsection{\cpp|union| + tag}
+
+\begin{frame}[fragile]
+  \frametitle{\cpp|union| + \cpp|class| + \cpp|enum|}
+\begin{cppcode}
+class svu {
+ private:
+  enum { STRING, VECTOR } tag;
+  union {
+    std::string s;
+    std::vector<int> v;
+  };
+};
+\end{cppcode}
+  \begin{itemize}
+  \item Because it's so unsafe, let's bundle it up into a class and only expose
+    safe operations.
+  \item We need to keep track of which union member we have initialized - we
+    call this a \alert{tag}.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Construction}
+\begin{cppcode}
+ private:
+  void construct(const std::string& _s) {
+    tag = STRING;
+    new (&s) std::string(_s);
+  }
+  void construct(const std::vector<int>& _v) {
+    tag = VECTOR;
+    new (&v) std::vector<int>(_v);
+  }
+ public:
+  template <typename T>
+  svu(const T& x) {
+    construct(x);
+  }
+\end{cppcode}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Visitation}
+\begin{cppcode}
+ public:
+  template <typename R, typename F>
+  R visit(F&& f) {
+    switch (tag) {
+      case STRING: return f(s);
+      case VECTOR: return f(v);
+    }
+  }
+  // and a const version
+\end{cppcode}
+  \begin{itemize}
+  \item So the object you pass in has to have an \cpp|operator()| that takes a
+    \cpp|string| and one that takes a \cpp|vector<int>|.
+  \item Both operators must return something convertible to \cpp|R|.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Visitation example}
+\begin{cppcode}
+struct Visitor {
+  int operator()(const string& s) { return s.size(); }
+  int operator()(const vector<int> v) { return v[0]; }
+};
+svu x("Hello");
+int i = x.visit<int>(Visitor()); // 5
+int i = x.visit<int>([](const auto& v) {
+                       return v.size();
+                     });
+\end{cppcode}
+\end{frame} 
+
+\begin{frame}[fragile]
+  \frametitle{Destruction}
+\begin{cppcode}
+ private:
+  void destruct() {
+    visit<void>([](auto&& x) {
+      using T = std::decay_t<decltype(x)>;
+      x.~T();
+    });
+  }
+ public:
+  ~svu() { destruct(); }
+\end{cppcode}
+  \begin{itemize}
+  \item \cpp|decay_t|?
+  \item This has no dependencies on the particular types we're using.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Assignment}
+\begin{cppcode}
+  svu& operator=(const svu& other) {
+    destruct();
+    other.visit<void>(
+        [this](auto&& v) { construct(v); });
+    return *this;
+  }
+\end{cppcode}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Move semantics}
+\end{frame}
+
+
+\section{Inline visitors}
+
+\begin{frame}[fragile,fragile]
+  \frametitle{Inline visitors}
+  \begin{itemize}
+  \item Recall how we defined a visitor earlier:
+\begin{cppcode}
+struct Visitor {
+  int operator()(const string& s) {return s.size();}
+  int operator()(const vector<int> v) {return v[0];}
+};
+\end{cppcode}
+  \item Wouldn't it be nice to not have to explicitly define a struct for this?
+\begin{cppcode}
+x.visit<int>(
+    [](const string& s) { return s.size(); },
+    [](const vector<int> v) { return v[0]; });
+\end{cppcode}
+  \item We can do this with a little recursive class template...
+  \end{itemize}
+\end{frame}
+  
+\begin{frame}[fragile]
+  \frametitle{Overload set}
+  \begin{itemize}
+  \item We start by declaring the class template. The template parameters are
+    the types of the function-like objects that implement it:
+\begin{cppcode}
+template <typename... Fs>
+class overload_set;
+\end{cppcode}
+
+  \item Then we define the base case for the recursion - an overload set with
+    zero functions:
+\begin{cppcode}
+template <>
+class overload_set<> {
+ public:
+  void operator()() = delete;
+};
+\end{cppcode}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Overload set}
+  \begin{itemize}
+  \item Finally we define the inductive case --- an overload set with $n+1$
+    functions defined in terms of one with $n$:
+  \end{itemize}
+\begin{cppcode}
+template <typename F, typename... Fs>
+class overload_set<F, Fs...>
+    : private overload_set<Fs...>, private F {
+ public:
+  explicit overload_set(F&& f, Fs&&... fs)
+      : overload_set<Fs...>(std::forward<Fs>(fs)...),
+        F(std::forward<F>(f)) {}
+
+  using F::operator();
+  using overload_set<Fs...>::operator();
+};
+\end{cppcode}
+\end{frame}
+
+\begin{frame}[fragile]
+  \begin{itemize}
+  \item Now we can add an overload of our \cpp|visit| function to create an
+    \cpp|overload_set| if we pass more than one argument.
+\begin{cppcode}
+  template <
+      typename R, typename... Fs,
+      typename = std::enable_if_t<sizeof...(Fs) >= 2>>
+  R visit(Fs&&... fs) {
+    return visit<R>(
+        overload_set<Fs...>(std::forward<Fs>(fs)...));
+  }
+  // and a const version
+\end{cppcode}
+  \item In fact, we could make the original version private and use this one
+    unconditionally --- why not?
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Inline visitation}
+\begin{cppcode}
+  x.visit<int>(
+      [](const std::string& s) { return s.size(); },
+      [](const std::vector<int> v) { return v[0]; });
+\end{cppcode}
+  \begin{itemize}
+  \item Note how \cpp|s.size()| actually returns \cpp|size_t| but it gets
+    implicitly converted to \cpp|int| --- this is useful in many cases but
+    consider \verb|-Wconversion|.
+  \end{itemize}
+\end{frame}
+
+\section{Multi-visitation}
+
+\begin{frame}[fragile]
+  \frametitle{Multi-visitation}
+  \begin{itemize}
+  \item What if we want to visit two objects at once?
+\begin{cppcode*}{fontsize=\tiny}
+int plux(const svu& u1, const svu& u2) {
+  using namespace std;
+  return u1.visit<int>(
+      [&](const string& s1) {
+        return u2.visit<int>(
+            [&](const string& s2)      { return s1.size() + s2.size(); },
+            [&](const vector<int>& v2) { return s1.size() + v2[0]; });
+      },
+      [&](const vector<int> v1) {
+        return u2.visit<int>(
+            [&](const string& s2)      { return v1.size() + s2[0]; },
+            [&](const vector<int>& v2) { return v1[0] + v2[0]; });
+      });
+}
+\end{cppcode*}
+  \item That makes me want to claw my eyes out.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+  \begin{itemize}
+  \item I want to be able to write:
+\begin{cppcode*}{fontsize=\tiny}
+int plux2(const svu& u1, const svu& u2) {
+  using namespace std;
+  auto visitor = make_visitor<int>(
+      [](const string& s1,     const string& s2)      { return s1.size() + s2.size(); },
+      [](const string& s1,     const vector<int>& v2) { return s1.size() + v2[0]; },
+      [](const vector<int> v1, const string& s2)      { return v1.size() + s2[0]; },
+      [](const vector<int> v1, const vector<int>& v2) { return v1[0] + v2[0]; });
+  return visitor(u1, u2);
+}
+\end{cppcode*}
+  \item This is much nicer because
+    \begin{itemize}
+    \item it scales gracefully to any number of visitees,
+    \item it allows wildcards in any position and
+    \item it only makes we want to claw one eye out.
+    \end{itemize}
+  \item But how do we make one?
+  \end{itemize}
+\end{frame}
+  
+\begin{frame}[fragile]
+\begin{cppcode}
+template <typename R, typename F>
+class visitor {
+ private:
+  F m_f;
+
+ public:
+  explicit visitor(F&& f) : m_f(f) {}
+
+  template <typename... Vs>
+  auto operator()(const Vs&... args) {
+    return collect(std::tuple<>(), args...);
+  }
+\end{cppcode}
+\end{frame}
+
+\begin{frame}[fragile]
+\begin{cppcode}
+ private:
+  template <typename T>
+  auto collect(const T& t) {
+    return apply(m_f, t);
+  }
+
+  template <typename T, typename V, typename... Vs>
+  auto collect(const T& t, const V& arg,
+               const Vs&... args) {
+    return arg.template visit<R>([&](auto v) {
+      return this->collect(
+          std::tuple_cat(t, std::make_tuple(v)),
+          args...);
+    });
+  }
+};
+\end{cppcode}
+\end{frame}
+
+\begin{frame}[fragile]
+\begin{cppcode}
+template <typename Callable, typename Tuple,
+          size_t... I>
+auto apply_impl(Callable&& f, Tuple&& t,
+                std::index_sequence<I...>) {
+  return f(std::get<I>(t)...);
+}
+
+template <typename Callable, typename Tuple>
+auto apply(Callable&& f, Tuple&& t) {
+  using is = std::make_index_sequence<
+      std::tuple_size<std::decay_t<Tuple>>::value>;
+  return apply_impl(std::forward<Callable>(f),
+                    std::forward<Tuple>(t), is());
+}
+\end{cppcode}
+\end{frame}
+
+\begin{frame}[fragile]
+  \begin{cppcode}
+state transition(const state& s, const event& e) {
+  return make_visitor<state>(make_overload_set(
+      [](auto,      start_turning e) {
+        return turning{e.target};
+      },
+      [](auto,      stop_turning) { return idle{}; },
+      [](auto s,    heading_changed) { return s; },
+      [](turning s, heading_changed e) -> state {
+        if (std::abs(e.heading - s.target) < .1f) {
+          return idle{};
+        } else {
+          return s;
+        }
+      }))(s, e);
+}
+\end{cppcode}
 \end{frame}
 
 
