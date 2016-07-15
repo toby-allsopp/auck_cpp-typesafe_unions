@@ -1,7 +1,7 @@
 #include "event.hpp"
 #include "state.hpp"
 #include "variant.hpp"
-#include "visitor.hpp"
+#include "multivisitor.hpp"
 
 #include <cmath>
 #include <iostream>
@@ -40,7 +40,7 @@ state_u transition_u(const state_u& current_state,
 
 state transition(const state& current_state,
                  const event& e) {
-  return toby::make_visitor<state>(
+  return toby::make_multivisitor<state>(
       [](auto, start_turning e) {
         return turning{e.targetHeading};
       },
@@ -165,7 +165,7 @@ int plux(const svu& u1, const svu& u2) {
 
 int plux2(const svu& u1, const svu& u2) {
   using namespace std;
-  auto visitor = toby::make_visitor<int>(
+  auto visitor = toby::make_multivisitor<int>(
       [](const string& s1, const string& s2) { return s1.size() + s2.size(); },
       [](const string& s1, const vector<int>& v2) { return s1.size() + v2[0]; },
       [](const vector<int> v1, const string& s2) { return v1.size() + s2[0]; },
