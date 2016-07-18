@@ -2,12 +2,17 @@
 \documentclass[aspectratio=169]{beamer}
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
-\usepackage{minted}
 \usepackage{amsmath}
 \usepackage{booktabs}
 \usepackage{sourcecodepro}
 %\usepackage{sourcesanspro}
 \usepackage{arev}
+\usepackage{tikz}
+\usetikzlibrary{arrows,shapes,positioning}
+\usepackage{dot2texi}
+%\usepackage{tikz-uml}
+%\usepackage[pdf]{graphviz}
+\usepackage{minted}
 
 \usetheme{Goettingen}
 \usecolortheme{}
@@ -17,7 +22,7 @@
 \setbeamertemplate{navigation symbols}{}
 
 \date{Auckland C++ Meetup\\19 July 2016}
-\title{Type-safe Unions in C++}
+\title{Type-safe Unions in C++14}
 \subtitle{}
 \author[Toby Allsopp]{Toby Allsopp\\\texttt{toby@mi6.gen.nz}}
 
@@ -52,55 +57,76 @@
 
 \section{Motivating Example}
 
-\begin{frame}
+\begin{frame}[fragile]
   \frametitle{A robot}  
+  %\digraph[scale=0.5]{abc}{
+  \begin{center}
+  \begin{dot2tex}[dot,autosize,scale=0.6]
+    digraph {
+      center=1;
+      rankdir=LR;
+      node [shape=box];
+      start [shape=circle,style=filled,fillcolor=black,label=""];
+      decision [shape=diamond, label=""];
+      start->off [weight=10];
+      idle->turning [label="start_turning"];
+      turning->decision [weight=2,label="heading_changed"];
+      decision->turning [label="[heading!=target]"];
+      decision->idle [label="[heading==target]"];
+      turning->idle [label="reset"];
+      off->idle [label="turn_on"];
+      idle->off [label="turn_off"];
+      turning->off [label="turn_off"];
+    }
+  \end{dot2tex}
+  \end{center}
   \begin{itemize}
   \item States
-    \inputminted{cpp}{state.hpp}
+\begin{cppcode*}{fontsize=\footnotesize}
+struct off {};
+struct idle {};
+struct turning { float target; };
+\end{cppcode*}
   \item Events
-    \inputminted{cpp}{event.hpp}
+\begin{cppcode*}{fontsize=\footnotesize}
+struct turn_on {};
+struct turn_off {};
+struct start_turning { float target; };
+struct heading_changed { float heading; };
+struct reset { std::string reason; };
+\end{cppcode*}
   \end{itemize}
 \end{frame}
 
 \begin{frame}[fragile]
-  \frametitle{State transitions}
-  \begin{tabular}{ll|l}
-    \toprule
-    \alert{Start state} & \alert{Event}            & \alert{End state} \\
-    \midrule
-    Any                 & \cpp|start_turning{h}|   & \cpp|turning{h}|  \\
-    Any                 & \cpp|stop_turning|       & \cpp|idle|        \\
-    \cpp|turning{h}|    & \cpp|heading_changed{h}| & \cpp|idle|        \\
-    $s$                 & \cpp|heading_changed|    & $s$               \\
-    \bottomrule
-  \end{tabular}
-\end{frame}
-
-
-\section{A Touch of Theory}
-
-\begin{frame}
-  \frametitle{Types}
-  A \alert{type} is EITHER
   \begin{itemize}
-  \item a set of $n$ primitive values $T = \left\{ v_1, v_2, \dots, v_n \right\}$,
-  \item a \alert{product} of $n$ other types $T = T_1 \times T_2 \times \dots
-    \times T_n$, or
-  \item a \alert{sum} of $n$ other types $T = T_1 \cup T_2 \cup \dots \cup T_n$.
+  \item We want to write a state transition function for the robot
+\begin{cppcode}
+state transition(const state& s, const event& e);
+\end{cppcode}
+  \item But what types do we use for \cpp|state| and \cpp|event|?
+  \item We need something that can hold \alert{either} an \cpp|off|, an
+    \cpp|idle| or a \cpp|turning| (and similarly for the events)
+  \item Something like a \cpp|union|
+  \item But better!
   \end{itemize}
 \end{frame}
+
 
 \section{Discriminated Unions}
 
 \begin{frame}[fragile]
-  \frametitle{Sum types}
+  \frametitle{\cpp|variant|}
   \begin{itemize}
-  \item To represent the state of the robot, we want a type whose values are
-    \alert{either} \cpp|idle| \alert{or} \cpp|turning|.
-  \item This is called a \alert{sum type} because its cardinality is the sum of
-    the cardinalities of its constituent types.
-  \item We could also call it a \alert{union type} because the set of its
-    possible values is the union of the sets of values of its constituent types.
+  \item Boost has \cpp|boost::variant|
+  \item C++17 will have \cpp|std::variant|
+  \item We're going to build our own
+\begin{cppcode}
+using state = variant<off, idle, turning>;
+using event =
+    variant<turn_on, turn_off, start_turning, reset,
+            heading_changed>;
+\end{cppcode}
   \end{itemize}
 \end{frame}
 
@@ -250,6 +276,12 @@ int i = x.visit<int>([](const auto& v) {
 
 \begin{frame}
   \frametitle{Move semantics}
+  \begin{itemize}
+  \item We can define move copy constructors and assignment operators
+  \item And we should for efficiency's sake
+  \item But it's tedious --- just chuck some \cpp|&&|s and \cpp|std::move|s around
+    the place
+  \end{itemize}
 \end{frame}
 
 
@@ -321,19 +353,15 @@ class overload_set<F, Fs...>
 \begin{frame}[fragile]
   \begin{itemize}
   \item Now we can add an overload of our \cpp|visit| function to create an
-    \cpp|overload_set| if we pass more than one argument.
+    \cpp|overload_set| if we pass other than one argument.
 \begin{cppcode}
-  template <
-      typename R, typename... Fs,
-      typename = std::enable_if_t<sizeof...(Fs) >= 2>>
+  template <typename R, typename... Fs>
   R visit(Fs&&... fs) {
     return visit<R>(
         overload_set<Fs...>(std::forward<Fs>(fs)...));
   }
   // and a const version
 \end{cppcode}
-  \item In fact, we could make the original version private and use this one
-    unconditionally --- why not?
   \end{itemize}
 \end{frame}
 
@@ -383,7 +411,7 @@ int plux(const svu& u1, const svu& u2) {
 \begin{cppcode*}{fontsize=\tiny}
 int plux2(const svu& u1, const svu& u2) {
   using namespace std;
-  auto visitor = make_visitor<int>(
+  auto visitor = make_multivisitor<int>(
       [](const string& s1,     const string& s2)      { return s1.size() + s2.size(); },
       [](const string& s1,     const vector<int>& v2) { return s1.size() + v2[0]; },
       [](const vector<int> v1, const string& s2)      { return v1.size() + s2[0]; },
@@ -402,14 +430,17 @@ int plux2(const svu& u1, const svu& u2) {
 \end{frame}
   
 \begin{frame}[fragile]
+  \begin{itemize}
+  \item It starts out pretty simple...
+  \end{itemize}
 \begin{cppcode}
 template <typename R, typename F>
-class visitor {
+class multivisitor {
  private:
   F m_f;
 
  public:
-  explicit visitor(F&& f) : m_f(f) {}
+  explicit multivisitor(F&& f) : m_f(f) {}
 
   template <typename... Vs>
   auto operator()(const Vs&... args) {
@@ -419,7 +450,11 @@ class visitor {
 \end{frame}
 
 \begin{frame}[fragile]
-\begin{cppcode}
+  \begin{itemize}
+  \item The tricky bit is that we need to accumulate the results of visiting
+    each variant until we've visited them all.
+  \end{itemize}
+\begin{cppcode*}{fontsize=\footnotesize}
  private:
   template <typename T>
   auto collect(const T& t) {
@@ -427,22 +462,25 @@ class visitor {
   }
 
   template <typename T, typename V, typename... Vs>
-  auto collect(const T& t, const V& arg,
-               const Vs&... args) {
+  auto collect(const T& t, const V& arg, const Vs&... args) {
     return arg.template visit<R>([&](auto v) {
       return this->collect(
-          std::tuple_cat(t, std::make_tuple(v)),
-          args...);
+          std::tuple_cat(t, std::make_tuple(v)), args...);
     });
   }
 };
-\end{cppcode}
+\end{cppcode*}
 \end{frame}
 
 \begin{frame}[fragile]
-\begin{cppcode}
-template <typename Callable, typename Tuple,
-          size_t... I>
+  \begin{itemize}
+  \item OK, now we have a tuple of values --- how do we pass them to our
+    function?
+  \item C++17 has \cpp|std::apply| but we can copy a cheap imposter from
+    \href{http://en.cppreference.com/w/cpp/utility/apply}{\url{cppreference.com}}...
+  \end{itemize}
+\begin{cppcode*}{fontsize=\footnotesize}
+template <typename Callable, typename Tuple, size_t... I>
 auto apply_impl(Callable&& f, Tuple&& t,
                 std::index_sequence<I...>) {
   return f(std::get<I>(t)...);
@@ -455,27 +493,224 @@ auto apply(Callable&& f, Tuple&& t) {
   return apply_impl(std::forward<Callable>(f),
                     std::forward<Tuple>(t), is());
 }
+\end{cppcode*}
+\end{frame}
+
+
+\section{Generic variant}
+
+\begin{frame}
+  \begin{itemize}
+  \item So, that's all well and good if you want a variant that can hold a
+    \cpp|string| or a \cpp|vector<int>|.
+  \item But we wanted two different variants --- one for states and one for
+    events.
+  \item So let's copy and paste and change the names, job done.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \begin{center}
+    \Huge{Hell, no!}
+  \end{center}
+  \begin{center}
+    We're just getting warmed up.
+  \end{center}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Construction}
+  \begin{itemize}
+  \item We need a \cpp|construct| function for each type in the variant.
+  \item So we go to our old friend, the recursive class template.
+  \item The base case, for a variant with zero types:
+  \end{itemize}
+\begin{cppcode}
+template <typename I, I N, typename... Ts>
+struct variant_construct;
+
+template <typename I, I N>
+struct variant_construct<I, N> {
+  static I construct();
+};
 \end{cppcode}
 \end{frame}
 
 \begin{frame}[fragile]
-  \begin{cppcode}
+  \frametitle{Construction}
+  \begin{itemize}
+  \item And the inductive $n+1$ case defined in terms of the $n$ case:
+  \end{itemize}
+\begin{cppcode}
+template <typename I, I N, typename T, typename... Ts>
+struct variant_construct<I, N, T, Ts...>
+    : private variant_construct<I, N + 1, Ts...> {
+  using super = variant_construct<I, N + 1, Ts...>;
+
+  static I construct(void* storage, const T& value) {
+    new (storage) T(value);
+    return N;
+  }
+  using super::construct;
+};
+\end{cppcode}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Visitation}
+\begin{cppcode*}{fontsize=\tiny}
+template <typename I, I N, typename... Ts>
+struct variant_visit;
+
+template <typename I, I N>
+struct variant_visit<I, N> {
+  template <typename R, typename F>
+  static R visit_helper_const(I tag, const void*, F&&) {
+    throw std::logic_error("variant tag invalid");
+  }
+};
+
+template <typename I, I N, typename T, typename... Ts>
+struct variant_visit<I, N, T, Ts...> : private variant_visit<I, N + 1, Ts...> {
+  using super = variant_visit<I, N + 1, Ts...>;
+
+  template <typename R, typename F>
+  static R visit_helper_const(I tag, const void* storage, F&& f) {
+    if (tag == N) {
+      return f(*reinterpret_cast<const T*>(storage));
+    }
+    return super::template visit_helper_const<R>(tag, storage, std::forward<F>(f));
+  }
+};
+\end{cppcode*}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Storage}
+  \begin{itemize}
+  \item I can't figure out how to use a \cpp|union| as storage.
+  \item But we can use a very handy template:
+\begin{cppcode}
+  typename std::aligned_union_t<0, Ts...> storage;
+\end{cppcode}
+  \item The size needed for the tag depends on how many types are in the
+    variant.
+\begin{cppcode*}{fontsize=\tiny}
+template <uintmax_t N, typename Enable = void>
+struct smallest_unisnged_type;
+
+template <uintmax_t N>
+struct smallest_unisnged_type<
+    N, typename std::enable_if_t<N <= std::numeric_limits<uint8_t>::max()>> {
+  using type = uint8_t;
+};
+
+template <uintmax_t N>
+using smallest_unisnged_type_t = typename smallest_unisnged_type<N>::type;
+\end{cppcode*}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{\cpp|variant| part 1}
+\begin{cppcode*}{fontsize=\tiny}
+template <typename... Ts>
+struct variant_helper {
+  using tag_type = smallest_unisnged_type_t<sizeof...(Ts)>;
+  using super_construct = variant_construct<tag_type, 0, Ts...>;
+  using super_visit = variant_visit<tag_type, 0, Ts...>;
+};
+
+template <typename... Ts>
+class variant : private detail::variant_helper<Ts...>::super_construct,
+                private detail::variant_helper<Ts...>::super_visit {
+  using helper = detail::variant_helper<Ts...>;
+  using super_construct = typename helper::super_construct;
+  using super_visit = typename helper::super_visit;
+
+  typename std::aligned_union_t<0, char, Ts...> storage;
+  typename helper::tag_type tag;
+
+  using super_construct::construct;
+
+  void destruct() {
+    std::move(*this).template visit<void>([this](auto&& v) {
+      using T = std::decay_t<decltype(v)>;
+      reinterpret_cast<T*>(&storage)->~T();
+    });
+  }
+\end{cppcode*}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{\cpp|variant| part 2}
+\begin{cppcode*}{fontsize=\tiny}
+ public:
+  template <typename T, typename = decltype(construct(
+                            &storage, std::forward<T>(std::declval<T>())))>
+  variant(T&& value) {
+    tag = construct(&storage, std::forward<T>(value));
+  }
+
+  variant(const variant& other) {
+    other.visit<void>(
+        [this](auto&& value) { tag = construct(&storage, value); });
+  }
+
+  variant& operator=(const variant& other) {
+    destruct();
+    other.visit<void>(
+        [this](auto&& value) { tag = construct(&storage, value); });
+    return *this;
+  }
+
+  ~variant() { destruct(); }
+
+  template <typename R, typename F>
+  auto visit(F&& f) const& {
+    return super_visit::template visit_helper_const<R>(tag, &storage,
+                                                       std::forward<F>(f));
+  }
+};
+\end{cppcode*}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Variant type}
+  \begin{itemize}
+  \item Finally, we can define the types for our robot's state and events
+  \begin{cppcode*}{fontsize=\footnotesize}
+using state = variant<off, idle, turning>;
+using on = variant<idle, turning>;
+
+using event = variant<turn_on, turn_off, start_turning, reset,
+                      heading_changed>;
+\end{cppcode*}
+  \item That \cpp|on| type comes in handy for the state transitions.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{State transitions}
+  \begin{cppcode*}{fontsize=\footnotesize}
 state transition(const state& s, const event& e) {
-  return make_visitor<state>(make_overload_set(
-      [](auto,      start_turning e) {
-        return turning{e.target};
-      },
-      [](auto,      stop_turning) { return idle{}; },
-      [](auto s,    heading_changed) { return s; },
+  return make_multivisitor<state>(
+      [](off,       turn_on)         { return idle{}; },
+      [](off,       auto)            { return off{}; },
+      [](on,        turn_off)        { return off{}; },
+      [](auto s,    turn_on)         { return s; },
+      [](on,        reset)           { return idle{}; },
+      [](on,        start_turning e) { return turning{e.target}; },
+      [](idle s,    heading_changed) { return s; },
       [](turning s, heading_changed e) -> state {
         if (std::abs(e.heading - s.target) < .1f) {
           return idle{};
         } else {
           return s;
         }
-      }))(s, e);
+      })(s, e);
 }
-\end{cppcode}
+\end{cppcode*}
 \end{frame}
 
 

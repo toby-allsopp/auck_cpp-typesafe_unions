@@ -1,9 +1,11 @@
 #include <iostream>
 
+struct turn_on {};
+struct turn_off {};
 struct start_turning {
-  float targetHeading;
+  float target;
 };
-struct stop_turning {
+struct reset {
   std::string reason;
 };
 struct heading_changed {
@@ -11,10 +13,10 @@ struct heading_changed {
 };
 
 std::ostream& operator<<(std::ostream& os, const start_turning& e) {
-  return os << "start_turning{" << e.targetHeading << "}";
+  return os << "start_turning{" << e.target << "}";
 }
-std::ostream& operator<<(std::ostream& os, const stop_turning& e) {
-  return os << "stop_turning{" << e.reason <<"}";
+std::ostream& operator<<(std::ostream& os, const reset& e) {
+  return os << "reset{" << e.reason <<"}";
 }
 std::ostream& operator<<(std::ostream& os, const heading_changed& e) {
   return os << "heading_changed" << e.heading << "}";

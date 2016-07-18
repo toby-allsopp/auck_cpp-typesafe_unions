@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-add_executable(tmp tmp.cpp)
+add_executable(tmp tmp.cpp svu.cpp)
 target_compile_options(tmp PRIVATE -Wall)
 target_include_directories(tmp PRIVATE spdlog/include)
 target_link_libraries(tmp pthread)
