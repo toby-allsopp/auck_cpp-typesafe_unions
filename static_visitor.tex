@@ -23,7 +23,7 @@
 
 \date{Auckland C++ Meetup\\19 July 2016}
 \title{Type-safe Unions in C++14}
-\subtitle{}
+\subtitle{\small\url{https://github.com/toby-allsopp/auck_cpp-typesafe_unions}}
 \author[Toby Allsopp]{Toby Allsopp\\\texttt{toby@mi6.gen.nz}}
 
 \hypersetup{
@@ -46,7 +46,21 @@
 \section{Introduction}
 
 \begin{frame}
-  \frametitle{This talk}
+  \frametitle{Notes}
+  \begin{itemize}
+  \item There is lots of code in this talk
+  \item All code is on github
+  \item Intended to conform to C++14
+  \item Tested with GCC 6.1.1 and clang 3.8.0
+  \item Might work with VS2015
+  \item I'm not an expert on TMP; this code is almost certainly inefficient
+    \begin{itemize}
+    \item at coding time
+    \item at compile time
+    \item at run time
+    \end{itemize}
+  \item Feel free to shout out suggestions
+  \end{itemize}
 \end{frame}
 
 \begin{frame}
@@ -55,7 +69,7 @@
 \end{frame}
 
 
-\section{Motivating Example}
+\section{Motivating example}
 
 \begin{frame}[fragile]
   \frametitle{A robot}  
@@ -113,7 +127,7 @@ state transition(const state& s, const event& e);
 \end{frame}
 
 
-\section{Discriminated Unions}
+\section{Discriminated unions}
 
 \begin{frame}[fragile]
   \frametitle{\cpp|variant|}
@@ -129,8 +143,6 @@ using event =
 \end{cppcode}
   \end{itemize}
 \end{frame}
-
-\subsection{Plain old \cpp{union}}
 
 \begin{frame}[fragile]
   \frametitle{Indiscriminate \cpp|union|}
@@ -165,8 +177,6 @@ new (&x.v) std::vector<int>{1, 2, 3}; // LEAK!
 x.s.~std::string(); // DO THIS FIRST
 \end{cppcode}
 \end{frame}
-
-\subsection{\cpp|union| + tag}
 
 \begin{frame}[fragile]
   \frametitle{\cpp|union| + \cpp|class| + \cpp|enum|}
@@ -523,17 +533,18 @@ auto apply(Callable&& f, Tuple&& t) {
   \begin{itemize}
   \item We need a \cpp|construct| function for each type in the variant.
   \item So we go to our old friend, the recursive class template.
-  \item The base case, for a variant with zero types:
-  \end{itemize}
 \begin{cppcode}
 template <typename I, I N, typename... Ts>
 struct variant_construct;
-
+\end{cppcode}
+  \item The base case, for a variant with zero types:
+\begin{cppcode}
 template <typename I, I N>
 struct variant_construct<I, N> {
   static I construct();
 };
 \end{cppcode}
+  \end{itemize}
 \end{frame}
 
 \begin{frame}[fragile]
@@ -622,9 +633,9 @@ struct variant_helper {
 };
 
 template <typename... Ts>
-class variant : private detail::variant_helper<Ts...>::super_construct,
-                private detail::variant_helper<Ts...>::super_visit {
-  using helper = detail::variant_helper<Ts...>;
+class variant : private variant_helper<Ts...>::super_construct,
+                private variant_helper<Ts...>::super_visit {
+  using helper = variant_helper<Ts...>;
   using super_construct = typename helper::super_construct;
   using super_visit = typename helper::super_visit;
 
