@@ -9,3 +9,8 @@ add_executable(tmp tmp.cpp svu.cpp)
 target_compile_options(tmp PRIVATE -Wall)
 target_include_directories(tmp PRIVATE spdlog/include)
 target_link_libraries(tmp pthread)
+
+add_executable(test_multivisitor test_multivisitor.cpp)
+target_compile_options(test_multivisitor PRIVATE -Wall)
+target_include_directories(test_multivisitor PRIVATE spdlog/include)
+target_link_libraries(test_multivisitor pthread)
