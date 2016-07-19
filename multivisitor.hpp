@@ -47,9 +47,9 @@ class multivisitor {
   template <typename T, typename V, typename... Vs>
   auto collect(const T& t, const V& arg,
                const Vs&... args) {
-    return arg.template visit<R>([&](auto v) {
+    return arg.template visit<R>([&](const auto& v) {
       return this->collect(
-          std::tuple_cat(t, std::make_tuple(v)),
+          std::tuple_cat(t, std::tuple<decltype(v)>(v)),
           args...);
     });
   }
