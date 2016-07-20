@@ -39,13 +39,13 @@ class multivisitor {
   }
 
  private:
-  template <typename T>
-  auto collect(const T& t) {
+  template <typename... Ts>
+  auto collect(const std::tuple<Ts...>& t) {
     return apply(m_f, t);
   }
 
-  template <typename T, typename V, typename... Vs>
-  auto collect(const T& t, const V& arg,
+  template <typename... Ts, typename V, typename... Vs>
+  auto collect(const std::tuple<Ts...>& t, const V& arg,
                const Vs&... args) {
     return arg.template visit<R>([&](const auto& v) {
       return this->collect(
