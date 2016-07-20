@@ -22,10 +22,8 @@ class svu {
   template <typename R, typename F>
   R visit(F&& f) {
     switch (tag) {
-      case STRING:
-        return f(s);
-      case VECTOR:
-        return f(v);
+      case STRING: return f(s);
+      case VECTOR: return f(v);
     }
     throw std::logic_error("Bad tag");
   }
