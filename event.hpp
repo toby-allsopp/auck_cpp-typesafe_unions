@@ -16,7 +16,7 @@ std::ostream& operator<<(std::ostream& os, const start_turning& e) {
   return os << "start_turning{" << e.target << "}";
 }
 std::ostream& operator<<(std::ostream& os, const reset& e) {
-  return os << "reset{" << e.reason <<"}";
+  return os << "reset{" << e.reason << "}";
 }
 std::ostream& operator<<(std::ostream& os, const heading_changed& e) {
   return os << "heading_changed" << e.heading << "}";

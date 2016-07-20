@@ -15,12 +15,10 @@ class overload_set<> {
 };
 
 template <typename F, typename... Fs>
-class overload_set<F, Fs...>
-    : private overload_set<Fs...>, private F {
+class overload_set<F, Fs...> : private overload_set<Fs...>, private F {
  public:
   explicit overload_set(F&& f, Fs&&... fs)
-      : overload_set<Fs...>(std::forward<Fs>(fs)...),
-        F(std::forward<F>(f)) {}
+      : overload_set<Fs...>(std::forward<Fs>(fs)...), F(std::forward<F>(f)) {}
 
   using F::operator();
   using overload_set<Fs...>::operator();

@@ -13,8 +13,7 @@ using toby::make_multivisitor;
 using state = variant<off, idle, turning>;
 using on = variant<idle, turning>;
 
-using event = variant<turn_on, turn_off, start_turning, reset,
-                      heading_changed>;
+using event = variant<turn_on, turn_off, start_turning, reset, heading_changed>;
 
 // clang-format off
 state transition(const state& s, const event& e) {
@@ -47,16 +46,13 @@ int main() {
   spdlog::set_level(spdlog::level::debug);
   string_variant sv("Hello");
   sv = std::vector<int>{1, 2, 3};
-  logger->info("sizeof(empty_variant) = {}",
-               sizeof(empty_variant));
-  logger->info("sizeof(empty_variant.tag) = {}",
-               sizeof(empty_variant::tag));
+  logger->info("sizeof(empty_variant) = {}", sizeof(empty_variant));
+  logger->info("sizeof(empty_variant.tag) = {}", sizeof(empty_variant::tag));
   logger->info("sizeof(empty_variant.storage) = {}",
                sizeof(empty_variant::storage));
   logger->info("sizeof(event) = {}", sizeof(event));
   logger->info("sizeof(event.tag) = {}", sizeof(event::tag));
-  logger->info("sizeof(event.storage) = {}",
-               sizeof(event::storage));
+  logger->info("sizeof(event.storage) = {}", sizeof(event::storage));
   // empty_variant ev;
   logger->info("creating state from temporary idle");
   state s0{idle{}};

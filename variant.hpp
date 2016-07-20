@@ -102,11 +102,11 @@ class variant : private detail::variant_helper<Ts...>::super_construct,
   using super_construct = typename helper::super_construct;
   using super_visit = typename helper::super_visit;
 
-public:
+ public:
   typename std::aligned_union_t<0, char, Ts...> storage;
   typename helper::tag_type tag;
 
-private:
+ private:
   using super_construct::construct;
 
   void destruct() {

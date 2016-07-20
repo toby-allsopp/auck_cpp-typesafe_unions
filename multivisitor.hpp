@@ -8,20 +8,17 @@
 namespace toby {
 
 namespace detail {
-template <typename Callable, typename Tuple,
-          size_t... I>
-auto apply_impl(Callable&& f, Tuple&& t,
-                std::index_sequence<I...>) {
+template <typename Callable, typename Tuple, size_t... I>
+auto apply_impl(Callable&& f, Tuple&& t, std::index_sequence<I...>) {
   return f(std::get<I>(t)...);
 }
 }
 
 template <typename Callable, typename Tuple>
 auto apply(Callable&& f, Tuple&& t) {
-  using is = std::make_index_sequence<
-      std::tuple_size<std::decay_t<Tuple>>::value>;
-  return detail::apply_impl(std::forward<Callable>(f),
-                            std::forward<Tuple>(t),
+  using is =
+      std::make_index_sequence<std::tuple_size<std::decay_t<Tuple>>::value>;
+  return detail::apply_impl(std::forward<Callable>(f), std::forward<Tuple>(t),
                             is());
 }
 
@@ -45,12 +42,10 @@ class multivisitor {
   }
 
   template <typename... Ts, typename V, typename... Vs>
-  auto collect(const std::tuple<Ts...>& t, const V& arg,
-               const Vs&... args) {
+  auto collect(const std::tuple<Ts...>& t, const V& arg, const Vs&... args) {
     return arg.template visit<R>([&](const auto& v) {
-      return this->collect(
-          std::tuple_cat(t, std::tuple<decltype(v)>(v)),
-          args...);
+      return this->collect(std::tuple_cat(t, std::tuple<decltype(v)>(v)),
+                           args...);
     });
   }
 };
@@ -62,8 +57,7 @@ auto make_multivisitor(F&& f) {
 
 template <typename T, typename... Fs>
 auto make_multivisitor(Fs&&... fs) {
-  return make_multivisitor<T>(
-      make_overload_set(std::forward<Fs>(fs)...));
+  return make_multivisitor<T>(make_overload_set(std::forward<Fs>(fs)...));
 }
 
 }  // namespace toby
