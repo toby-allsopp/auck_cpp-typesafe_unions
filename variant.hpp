@@ -134,6 +134,15 @@ private:
       tag = construct(&storage, std::forward<decltype(value)>(value));
     });
   }
+
+  template <typename T, typename = decltype(construct(
+                            &storage, std::forward<T>(std::declval<T>())))>
+  variant& operator=(T&& value) {
+    destruct();
+    tag = construct(&storage, std::forward<T>(value));
+    return *this;
+  }
+
   variant& operator=(const variant& other) {
     detail::logger()->debug("variant copy assignment");
     destruct();

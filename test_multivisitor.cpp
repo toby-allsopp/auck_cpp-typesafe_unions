@@ -37,6 +37,17 @@ TEST_CASE("constructing a variant from a temporary uses the move constructor", "
   REQUIRE(counts.num_move_assignment == 0);
   REQUIRE(counts.num_destructor == 2);
 }
+TEST_CASE("assigning a variant from a temporary uses the move constructor", "[variant]") {
+  variant<special_member_counter> v(special_member_counter{});
+  counts = {};
+  v = special_member_counter{};
+  REQUIRE(counts.num_default_constructor == 1);
+  REQUIRE(counts.num_copy_constructor == 0);
+  REQUIRE(counts.num_move_constructor == 1);
+  REQUIRE(counts.num_copy_assignment == 0);
+  REQUIRE(counts.num_move_assignment == 0);
+  REQUIRE(counts.num_destructor == 2);
+}
 TEST_CASE("using multivisitor does not make any copies", "[multivisitor]") {
   {
     variant<special_member_counter> v1(special_member_counter{});
