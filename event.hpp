@@ -1,4 +1,5 @@
 #include <iostream>
+#include <string>
 
 struct turn_on {};
 struct turn_off {};

@@ -10,7 +10,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(Threads)
 
-if(CMAKE_BUILD_TOOL MATCHES "(msdev|devenv|nmake)")
+if(MSVC)
   add_compile_options(/W4)
 else()
   add_compile_options(-Wall -pedantic)

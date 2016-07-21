@@ -112,7 +112,7 @@ class variant : private detail::variant_helper<Ts...>::super_construct,
   void destruct() {
     std::move(*this).template visit<void>([this](auto&& v) {
       using T = std::decay_t<decltype(v)>;
-      reinterpret_cast<T*>(&storage)->~T();
+      v.~T();
     });
   }
 
