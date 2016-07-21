@@ -147,14 +147,14 @@ class variant : private detail::variant_helper<Ts...>::super_construct,
     detail::logger()->debug("variant copy assignment");
     destruct();
     other.visit<void>(
-        [this](auto&& value) { tag = construct(&storage, value); });
+        [this](auto&& value) { tag = this->construct(&storage, value); });
     return *this;
   }
   variant& operator=(variant&& other) {
     detail::logger()->debug("variant move assignment");
     destruct();
     std::move(other).template visit<void>([this](auto&& value) {
-      tag = construct(&storage, std::forward<decltype(value)>(value));
+      tag = this->construct(&storage, std::forward<decltype(value)>(value));
     });
     return *this;
   }

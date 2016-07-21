@@ -19,7 +19,7 @@ using event = variant<turn_on, turn_off, start_turning, reset, heading_changed>;
 state transition(const state& s, const event& e) {
   return make_multivisitor<state>(
       [](off,       turn_on)         { return idle{}; },
-      [](off,       auto)            { return off{}; },
+      [](off,       const auto&)     { return off{}; },
       [](on,        turn_off)        { return off{}; },
       [](auto s,    turn_on)         { return s; },
       [](on,        reset)           { return idle{}; },
