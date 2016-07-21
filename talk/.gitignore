@@ -1,0 +1,14 @@
+*.vrb
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.nav
+*.out
+*.rip
+*.snm
+*.synctex.gz
+*.toc
+_minted-*/
+auto/
+*-dot2tex-*
