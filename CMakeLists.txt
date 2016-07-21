@@ -16,8 +16,11 @@ else()
   add_compile_options(-Wall -pedantic)
 endif()
 
+add_library(variant INTERFACE)
+target_include_directories(variant INTERFACE include)
+
 add_executable(tmp tmp.cpp svu.cpp)
-target_link_libraries(tmp spdlog ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(tmp variant spdlog ${CMAKE_THREAD_LIBS_INIT})
 
 add_executable(test_multivisitor test_multivisitor.cpp)
-target_link_libraries(test_multivisitor spdlog ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(test_multivisitor variant spdlog ${CMAKE_THREAD_LIBS_INIT})
