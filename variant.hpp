@@ -126,12 +126,12 @@ class variant : private detail::variant_helper<Ts...>::super_construct,
   variant(const variant& other) {
     detail::logger()->debug("variant copy constructor");
     other.visit<void>(
-        [this](auto&& value) { tag = construct(&storage, value); });
+        [this](auto&& value) { tag = this->construct(&storage, value); });
   }
   variant(variant&& other) {
     detail::logger()->debug("variant move constructor");
     std::move(other).template visit<void>([this](auto&& value) {
-      tag = construct(&storage, std::forward<decltype(value)>(value));
+      tag = this->construct(&storage, std::forward<decltype(value)>(value));
     });
   }
 
