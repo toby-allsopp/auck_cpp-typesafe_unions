@@ -6,11 +6,19 @@
 #include <cstddef>
 #include <stdexcept>
 
+#include <spdlog/sinks/null_sink.h>
 #include <spdlog/spdlog.h>
 
 namespace toby {
 namespace detail {
-inline auto logger() { return spdlog::get("variant"); }
+inline auto logger() {
+  auto l = spdlog::get("variant");
+  if (l) {
+    return l;
+  }
+  return spdlog::create("variant",
+                        spdlog::sink_ptr(new spdlog::sinks::null_sink_st()));
+}
 
 template <typename I, I N, typename... Ts>
 struct variant_construct;
