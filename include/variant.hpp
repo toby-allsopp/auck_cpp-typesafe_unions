@@ -1,6 +1,8 @@
 #ifndef INCLUDED_TOBY_VARIANT_H
 #define INCLUDED_TOBY_VARIANT_H
 
+#include "overload_set.hpp"
+
 #include <cstddef>
 #include <stdexcept>
 
@@ -172,6 +174,15 @@ class variant : private detail::variant_helper<Ts...>::super_construct,
     detail::logger()->debug("visit &&");
     return std::move(*this).super_visit::template visit_helper_rvalue<R>(
         tag, &storage, std::forward<F>(f));
+  }
+  template <typename R, typename... Fs>
+  auto visit(Fs&&... fs) const& {
+    return visit<R>(overload_set<Fs...>(std::forward<Fs>(fs)...));
+  }
+  template <typename R, typename... Fs>
+  auto visit(Fs&&... fs) && {
+    return std::move(*this).template visit<R>(
+        overload_set<Fs...>(std::forward<Fs>(fs)...));
   }
 };
 
