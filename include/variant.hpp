@@ -4,7 +4,6 @@
 #include "overload_set.hpp"
 
 #include <cstddef>
-#include <experimental/type_traits>
 #include <stdexcept>
 
 #include <spdlog/sinks/null_sink.h>
@@ -33,9 +32,6 @@ template <typename I, I N, typename T, typename... Ts>
 struct variant_construct<I, N, T, Ts...>
     : private variant_construct<I, N + 1, Ts...> {
   using super = variant_construct<I, N + 1, Ts...>;
-
-  static_assert(!std::experimental::disjunction<std::is_same<T, Ts>...>::value,
-                "types must be unique");
 
   static I construct(void* storage, const T& value) {
     logger()->debug() << "copy construct<" << N << ">";
